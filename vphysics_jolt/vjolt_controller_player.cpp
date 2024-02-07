@@ -157,6 +157,9 @@ bool JoltPhysicsPlayerController::WasFrozen()
 
 static void CheckCollision( JoltPhysicsObject *pObject, JPH::CollideShapeCollector &ioCollector, JPH::BodyFilter &ioFilter )
 {
+	if ( !pObject->IsCollisionEnabled() )
+		return;
+	
 	JPH::PhysicsSystem *pSystem = pObject->GetEnvironment()->GetPhysicsSystem();
 
 	// TODO(Josh): Make a PLAYER ONLY layer that will only collide with MOVING ONLY annd
