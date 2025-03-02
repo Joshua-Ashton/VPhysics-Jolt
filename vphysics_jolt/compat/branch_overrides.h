@@ -46,11 +46,11 @@
 #define override_not_asw override
 #endif
 
-#ifndef GAME_VITAMIN
+#if !defined( GAME_VITAMIN ) && !defined( GAME_SDK2013 )
 using strlen_t = int;
 #endif
 
-#ifndef GAME_CSGO_OR_NEWER
+#if !defined( GAME_CSGO_OR_NEWER ) && !defined ( GAME_SDK2013 )
 #define FastASCIIToUpper( c ) ( ( ( (c) >= 'a' ) && ( (c) <= 'z' ) ) ? ( (c) - 32 ) : (c) )
 #define FastASCIIToLower( c ) ( ( ( (c) >= 'A' ) && ( (c) <= 'Z' ) ) ? ( (c) + 32 ) : (c) )
 #endif
