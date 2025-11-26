@@ -457,19 +457,14 @@ void JoltPhysicsPlayerController::OnPostSimulate( float flDeltaTime )
 		Log_Msg( LOG_VJolt,
 			"Player State:\n"
 			"  vOldPosition: %g %g %g\n"
-			"  vOldVelocity: %g %g %g\n"
 			"  vNewPosition: %g %g %g\n"
 			"  vNewVelocity: %g %g %g\n"
-			"  m_vLastImpulse: %g %g %g\n"
-			"  vControllerVelocity: %g %g %g\n"
-			"  vGroundVelocity: %g %g %g\n",
-			vOldPosition.x, vOldPosition.x, vOldPosition.z,
-			vOldVelocity.x, vOldVelocity.x, vOldVelocity.z,
+			"  m_vLastImpulse: %g %g %g\n",
+			m_vOldPosition.x, m_vOldPosition.x, m_vOldPosition.z,
 			vNewPosition.x, vNewPosition.x, vNewPosition.z,
 			vNewVelocity.x, vNewVelocity.x, vNewVelocity.z,
-			m_vLastImpulse.x, m_vLastImpulse.x, m_vLastImpulse.z,
-			vControllerVelocity.x, vControllerVelocity.x, vControllerVelocity.z,
-			vGroundVelocity.x, vGroundVelocity.x, vGroundVelocity.z );
+			m_vLastImpulse.x, m_vLastImpulse.x, m_vLastImpulse.z
+		);
 #endif
 	}
 

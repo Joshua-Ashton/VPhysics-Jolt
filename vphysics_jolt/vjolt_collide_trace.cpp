@@ -531,7 +531,8 @@ static void CastBoxVsShape( const Ray_t &ray, uint32 contentsMask, IConvexInfo *
 	if ( vjolt_trace_castbox_backface_force.GetBool() )
 		settings.SetBackFaceMode( JPH::EBackFaceMode::CollideWithBackFaces );
 	settings.mCollisionTolerance = SourceToJolt::Distance( 0.1f * 0.25f ); // Regular VPhysics uses 0.25" here for the "collision tolerance"/epsilon, but when actually testing, it uses 0.1 * epsilon, so provide that here.
-	settings.mUseShrunkenShapeAndConvexRadius = true;
+	// RaphaelIT7: This was reported to cause possibly false collision detection, this probably is because this can result in more "rounded" shapes.
+	// settings.mUseShrunkenShapeAndConvexRadius = true;
 	settings.mReturnDeepestPoint = false;
 
 	ContentsFilter_Shape filter( pShape, contentsMask, pConvexInfo );

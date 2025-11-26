@@ -1277,7 +1277,11 @@ void JoltPhysicsObject::UpdateMaterialProperties()
 {
 	const surfacedata_t *pSurface = JoltPhysicsSurfaceProps::GetInstance().GetSurfaceData( m_materialIndex );
 
-	m_pBody->SetRestitution( pSurface->physics.elasticity );
+	// RaphaelIT7: idk why but Jolt loves to create a rocket if elasticity is too high. iirc IVP internally clamps this too between 0 and 1 - atleast I think I saw it do that somewhere?
+	//             surface properties like Metal_bouncy have a ridiculous elasticity of 1000.
+	//             Why exactly 3.75? because it seems to be the most realistic limit to still allow for super bouncy things.
+	//             0 to 1 does not mean 100% bouncy here, idk why SetRestitution has no documentation.
+	m_pBody->SetRestitution( Clamp<float>(pSurface->physics.elasticity, 0, 3.75) );
 	m_pBody->SetFriction( pSurface->physics.friction );
 	m_flMaterialDensity = pSurface->physics.density;
 	m_GameMaterial = pSurface->game.material;
