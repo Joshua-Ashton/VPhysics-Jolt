@@ -1,6 +1,7 @@
 
 #include "cbase.h"
 
+#include "vjolt_surfaceprops.h"
 #include "vjolt_controller_shadow.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -95,21 +96,15 @@ void JoltPhysicsShadowController::GetLastImpulse( Vector *pOut )
 	VectorClear( *pOut );
 }
 
-// HACK HACK HACK WE MIGHT WANT TO CHANGE THIS
-// IMPLEMENT ME!
-static constexpr int ShadowMaterialIndex = 0xF000;
-
 void JoltPhysicsShadowController::UseShadowMaterial( bool bUseShadowMaterial )
 {
 	if ( !m_pObject )
 		return;
 
-#if 0
 	int current = m_pObject->GetMaterialIndex();
-	int target = bUseShadowMaterial ? ShadowMaterialIndex : m_savedMaterialIndex;
+	int target = bUseShadowMaterial ? JoltPhysicsSurfaceProps::GetInstance().GetShadowMaterialIndex() : m_savedMaterialIndex;
 	if ( target != current )
 		m_pObject->SetMaterialIndex( target );
-#endif
 }
 
 void JoltPhysicsShadowController::ObjectMaterialChanged( int materialIndex )

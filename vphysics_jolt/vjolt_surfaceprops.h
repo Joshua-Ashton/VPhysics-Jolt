@@ -1,6 +1,10 @@
 
 #pragma once
 
+// RaphaelIT7: IVP reminants :/
+static constexpr int ShadowMaterialIndex = 0xF000;
+static constexpr int MaxSurfaceMaterials = 128;
+
 struct JoltSurfaceProp
 {
 	surfacedata_t data;
@@ -55,11 +59,25 @@ public:
 
 	unsigned short		RegisterSound( const char *pName );
 
+	inline int RemapMaterialIndexForReserved( int nIndex ) const
+	{
+		if ( nIndex >= MaxSurfaceMaterials )
+			return nIndex == ShadowMaterialIndex ? m_ShadowMaterialIndex : 0;
+
+		return nIndex;
+	};
+
+	inline int GetShadowMaterialIndex() { return m_ShadowMaterialIndex; }
+
 private:
 	static JoltPhysicsSurfaceProps s_PhysicsSurfaceProps;
 
 	CUtlStringMap< JoltSurfaceProp >	m_SurfaceProps;
 	CUtlSymbolTable						m_SoundStrings;
+
+	int									m_ShadowMaterialIndex = 0;
+	bool								m_SetupShadowMaterial = false;
+	unsigned short						m_MaterialPropMap[MaxSurfaceMaterials];
 	
 	static constexpr UtlSymId_t BaseMaterialIdx = UtlSymId_t( 0 );
 

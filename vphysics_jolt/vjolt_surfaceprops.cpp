@@ -102,6 +102,12 @@ JoltPhysicsSurfaceProps::JoltPhysicsSurfaceProps()
 	// Game code uses 0 as invalid index, expects empty string
 	m_SoundStrings.AddString("");
 
+	m_ShadowMaterialIndex = 0;
+	m_SetupShadowMaterial = false;
+
+	// Following IVP's behavior - they initially map to themselves
+	for ( int i = 0; i < MaxSurfaceMaterials; ++i )
+		m_MaterialPropMap[ i ] = i;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -133,6 +139,20 @@ int JoltPhysicsSurfaceProps::ParseSurfaceData( const char *pFilename, const char
 			m_SurfaceProps[ id ] = values;
 	}
 
+	if ( !m_SetupShadowMaterial )
+	{
+		JoltSurfaceProp values = {};
+		values.data = m_SurfaceProps[ BaseMaterialIdx ].data;
+		// RaphaelIT7: IVP values - probably need adjusting / should be checked again
+		values.data.physics.friction = 0.8f;
+		values.data.physics.elasticity = 1e-3f;
+
+		m_ShadowMaterialIndex = m_SurfaceProps.GetNumStrings();
+		m_SurfaceProps[ GetReservedMaterialName( ShadowMaterialIndex ) ] = values;
+
+		m_SetupShadowMaterial = true;
+	}
+
 	return m_SurfaceProps.GetNumStrings();
 }
 
@@ -145,7 +165,11 @@ int JoltPhysicsSurfaceProps::SurfacePropCount( void ) const
 
 int JoltPhysicsSurfaceProps::GetSurfaceIndex( const char *pSurfacePropName ) const
 {
-	// TODO(Josh): Something about reserved props for $MATERIAL_INDEX_SHADOW
+	if ( pSurfacePropName[0] == '$' )
+	{
+		if ( V_stricmp( pSurfacePropName, "$MATERIAL_INDEX_SHADOW" ) )
+			return ShadowMaterialIndex;
+	}
 
 	UtlSymId_t nIndex = m_SurfaceProps.Find( pSurfacePropName );
 	if ( nIndex != m_SurfaceProps.InvalidIndex() )
@@ -156,6 +180,7 @@ int JoltPhysicsSurfaceProps::GetSurfaceIndex( const char *pSurfacePropName ) con
 
 void JoltPhysicsSurfaceProps::GetPhysicsProperties( int surfaceDataIndex, float *density, float *thickness, float *friction, float *elasticity ) const
 {
+	surfaceDataIndex = RemapMaterialIndexForReserved( surfaceDataIndex );
 	const UtlSymId_t id = surfaceDataIndex >= 0 && surfaceDataIndex < int( m_SurfaceProps.GetNumStrings() )
 		? UtlSymId_t( surfaceDataIndex )
 		: BaseMaterialIdx;
@@ -171,6 +196,7 @@ void JoltPhysicsSurfaceProps::GetPhysicsProperties( int surfaceDataIndex, float 
 
 surfacedata_t *JoltPhysicsSurfaceProps::GetSurfaceData( int surfaceDataIndex )
 {
+	surfaceDataIndex = RemapMaterialIndexForReserved( surfaceDataIndex );
 	const UtlSymId_t id = surfaceDataIndex >= 0 && surfaceDataIndex < int( m_SurfaceProps.GetNumStrings() )
 		? UtlSymId_t( surfaceDataIndex )
 		: BaseMaterialIdx;
@@ -188,8 +214,10 @@ const char *JoltPhysicsSurfaceProps::GetString( unsigned short stringTableIndex 
 
 const char *JoltPhysicsSurfaceProps::GetPropName( int surfaceDataIndex ) const
 {
+	surfaceDataIndex = RemapMaterialIndexForReserved( surfaceDataIndex );
 	if ( surfaceDataIndex < 0 || surfaceDataIndex >= int ( m_SurfaceProps.GetNumStrings() ) )
 		return nullptr;
+
 	return m_SurfaceProps.String( surfaceDataIndex );
 }
 
@@ -197,7 +225,11 @@ const char *JoltPhysicsSurfaceProps::GetPropName( int surfaceDataIndex ) const
 
 void JoltPhysicsSurfaceProps::SetWorldMaterialIndexTable( int *pMapArray, int mapSize )
 {
-	Log_Stub( LOG_VJolt );
+	if ( mapSize > MaxSurfaceMaterials )
+		mapSize = MaxSurfaceMaterials;
+
+	for ( int i = 0; i < mapSize; ++i )
+		m_MaterialPropMap[ i ] = (unsigned short)pMapArray[ i ];
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -240,32 +272,43 @@ KeyValues *JoltPhysicsSurfaceProps::SurfacePropsToKeyValues( const char *pszBuff
 
 void *JoltPhysicsSurfaceProps::GetIVPMaterial( int nIndex )
 {
-	Log_Stub( LOG_VJolt );
-	return nullptr;
+	nIndex = RemapMaterialIndexForReserved( nIndex );
+
+	if ( nIndex < 0 || nIndex > ( m_SurfaceProps.GetNumStrings() - 1 ) )
+		return nullptr;
+
+	// return &m_SurfaceProps[ nIndex ];
+	return nullptr; // RaphaelIT7: Current issue - the struct probably differs from IVP's class which would cause all sorts of issues :/
 }
 
 int JoltPhysicsSurfaceProps::GetIVPMaterialIndex( const void *pMaterial ) const
 {
+	// int nIndex = ( (char*)pMaterial - (char*)&m_SurfaceProps[0] ) / sizeof( JoltSurfaceProp ); - RaphaelIT7: Verify later again...
 	Log_Stub( LOG_VJolt );
-	return (int)(uintp)( pMaterial );
+	return -1; // IVP's default
 }
 
 void *JoltPhysicsSurfaceProps::GetIVPManager( void )
 {
+	// RaphaelIT7: Should be unused - was used by vphysics internally from what I could find
 	Log_Stub( LOG_VJolt );
 	return nullptr;
 }
 
 int JoltPhysicsSurfaceProps::RemapIVPMaterialIndex( int nIndex ) const
 {
-	Log_Stub( LOG_VJolt );
-	return nIndex;
+	if ( nIndex >= MaxSurfaceMaterials || nIndex < 0 )
+		return nIndex;
+
+	return m_MaterialPropMap[ nIndex ];
 }
 
 const char *JoltPhysicsSurfaceProps::GetReservedMaterialName( int nMaterialIndex ) const
 {
-	Log_Stub( LOG_VJolt );
-	return "default";
+	if ( nMaterialIndex == ShadowMaterialIndex )
+		return "$MATERIAL_INDEX_SHADOW";
+
+	return NULL;
 }
 
 //-------------------------------------------------------------------------------------------------

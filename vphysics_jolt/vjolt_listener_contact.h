@@ -144,8 +144,10 @@ public:
 		//
 		//JoltPhysicsCollisionData data( inManifold );
 		//std::unique_lock lock( m_CallbackMutex );
-		//m_pGameListener->Friction( pObject1, 15500.0f, pObject1->GetMaterialIndex(), pObject2->GetMaterialIndex(), &data );
-		//m_pGameListener->Friction( pObject2, 15500.0f, pObject2->GetMaterialIndex(), pObject1->GetMaterialIndex(), &data );
+
+		// RaphaelIT7: It should be noted that to fill the **second** hitSurface / materialIndex argument we should use RemapIVPMaterialIndex to keep IVP behavior!
+		//m_pGameListener->Friction( pObject1, 15500.0f, pObject1->GetMaterialIndex(), JoltPhysicsSurfaceProps::GetInstance().RemapIVPMaterialIndex( pObject2->GetMaterialIndex() ), &data );
+		//m_pGameListener->Friction( pObject2, 15500.0f, pObject2->GetMaterialIndex(), JoltPhysicsSurfaceProps::GetInstance().RemapIVPMaterialIndex( pObject1->GetMaterialIndex() ), &data );
 	}
 
 	void OnContactRemoved( const JPH::SubShapeIDPair &inSubShapePair )
