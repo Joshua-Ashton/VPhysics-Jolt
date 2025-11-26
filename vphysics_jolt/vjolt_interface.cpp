@@ -121,21 +121,33 @@ void *JoltPhysicsInterface::QueryInterface( const char *pInterfaceName )
 
 //-------------------------------------------------------------------------------------------------
 
+static std::vector<JoltPhysicsEnvironment *> g_pPhysicsEnvironments;
 IPhysicsEnvironment *JoltPhysicsInterface::CreateEnvironment()
 {
-	return new JoltPhysicsEnvironment();
+	JoltPhysicsEnvironment *pEnvironment = new JoltPhysicsEnvironment();
+	g_pPhysicsEnvironments.push_back(pEnvironment);
+	return pEnvironment;
 }
 
 void JoltPhysicsInterface::DestroyEnvironment( IPhysicsEnvironment *pEnvironment )
 {
-	delete static_cast<JoltPhysicsEnvironment *>( pEnvironment );
+	JoltPhysicsEnvironment *pJoltEnvironment = static_cast<JoltPhysicsEnvironment *>( pEnvironment );
+	
+	auto it = std::find(g_pPhysicsEnvironments.begin(), g_pPhysicsEnvironments.end(), pJoltEnvironment);
+	if (it != g_pPhysicsEnvironments.end())
+	{
+		g_pPhysicsEnvironments.erase(it);
+	}
+
+	delete pJoltEnvironment;
 }
 
 IPhysicsEnvironment *JoltPhysicsInterface::GetActiveEnvironmentByIndex( int index )
 {
-	// Josh: Nothing uses this... ever.
-	Log_Stub( LOG_VJolt );
-	return nullptr;
+	if ( index < 0 || index >= (int)g_pPhysicsEnvironments.size() )
+		return NULL;
+
+	return g_pPhysicsEnvironments[index];
 }
 
 //-------------------------------------------------------------------------------------------------
