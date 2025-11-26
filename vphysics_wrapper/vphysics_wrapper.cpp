@@ -32,6 +32,12 @@ public:
 	void Shutdown() override;
 	void *QueryInterface( const char *pInterfaceName ) override;
 
+#if PLATFORM_64BITS
+	const AppSystemInfo_t *GetDependencies( ) override { return NULL; };
+	AppSystemTier_t GetTier() override { return APP_SYSTEM_TIER2; };
+	void Reconnect( CreateInterfaceFn factory, const char *pInterfaceName ) override {};
+#endif
+
 	IPhysicsEnvironment *CreateEnvironment() override;
 	void DestroyEnvironment( IPhysicsEnvironment *pEnvironment ) override;
 	IPhysicsEnvironment *GetActiveEnvironmentByIndex( int index ) override;

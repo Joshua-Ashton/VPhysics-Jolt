@@ -7,7 +7,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        source_branch: [sdk2013-sp, sdk2013-mp, asw, gmod]
+        name: [sdk2013-sp, sdk2013-mp, asw, gmod, gmod_64]
+        include:
+          - name: sdk2013-sp
+            branch: sdk2013-sp
+            arch: '32'
+            vscodeArch: 'x86'
+          - name: sdk2013-mp
+            branch: sdk2013-mp
+            arch: '32'
+            vscodeArch: 'x86'
+          - name: asw
+            branch: asw
+            arch: '32'
+            vscodeArch: 'x86'
+          - name: gmod
+            branch: gmod
+            arch: '32'
+            vscodeArch: 'x86'
+          - name: gmod_64
+            branch: gmod
+            arch: '64'
+            vscodeArch: 'x64'
 
     runs-on: windows-2022
 
@@ -20,7 +41,7 @@ jobs:
     - name: Checkout VPhysics Jolt
       uses: actions/checkout@v3
       with:
-        path: ${{ matrix.source_branch }}/src/vphysics_jolt
+        path: ${{ matrix.branch }}/src/vphysics_jolt
         submodules: recursive
 
     - name: Find Visual Studio
@@ -32,28 +53,41 @@ jobs:
           | Out-File -FilePath "${Env:GITHUB_ENV}" -Append
 
     - name: Build MSVC x86
-      working-directory: ${{ matrix.source_branch }}/src
+      working-directory: ${{ matrix.branch }}/src
       run: |
         & "${Env:COMSPEC}" /s /c "`"${Env:VSDEVCMD}`" -arch=x86 -host_arch=x64 -no_logo && set" `
           | % { , ($_ -Split '=', 2) } `
           | % { [System.Environment]::SetEnvironmentVariable($_[0], $_[1]) }
         .\fix_registry.bat
-        .\createjoltprojects.bat
+        .\createjoltprojects.bat ${{ matrix.arch }}
         devenv jolt.sln /upgrade
-        msbuild jolt.sln /nodeReuse:false /t:Rebuild /p:Configuration=Release /p:Platform=x86 /m /v:minimal
+        msbuild jolt.sln /nodeReuse:false /t:Rebuild /p:Configuration=Release /p:Platform=${{ matrix.vscodeArch }} /m /v:minimal
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: vphysics_jolt_${{ matrix.source_branch }}_win32
-        path: ${{ matrix.source_branch }}/game
+        name: vphysics_jolt_${{ matrix.branch }}_win${{ matrix.arch }}
+        path: ${{ matrix.branch }}/game
         if-no-files-found: error
 
   linux:
     strategy:
       fail-fast: false
       matrix:
-        source_branch: [sdk2013-sp, sdk2013-mp, gmod]
+        name: [sdk2013-sp, sdk2013-mp, gmod, gmod_64]
+        include:
+          - name: sdk2013-sp
+            branch: sdk2013-sp
+            arch: '32'
+          - name: sdk2013-mp
+            branch: sdk2013-mp
+            arch: '32'
+          - name: gmod
+            branch: gmod
+            arch: '32'
+          - name: gmod_64
+            branch: gmod
+            arch: '64'
 
     runs-on: ubuntu-latest
     container: debian:bullseye
@@ -73,22 +107,25 @@ jobs:
     - name: Checkout VPhysics Jolt
       uses: actions/checkout@v3
       with:
-        path: ${{ matrix.source_branch }}/src/vphysics_jolt
+        path: ${{ matrix.branch }}/src/vphysics_jolt
         submodules: recursive
 
     - name: Build GCC x86
-      working-directory: ${{ matrix.source_branch }}/src
+      working-directory: ${{ matrix.branch }}/src
       run: |
         chmod +x createjoltprojects.sh
         chmod +x devtools/bin/vpc_linux
         chmod +x devtools/bin/vpc
         chmod +x devtools/gendbg.sh
-        ./createjoltprojects.sh 
-        make -f jolt.mak -j $(nproc)
+        ./createjoltprojects.sh ${{ matrix.arch }}
+        if [ "${{ matrix.arch }}" = "64" ]; then
+          make -f jolt.mak ARCH_FLAGS="-march=x86-64 -mtune=generic" -j $(nproc)
+        else
+          make -f jolt.mak -j $(nproc)
+        fi
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: vphysics_jolt_${{ matrix.source_branch }}_linux32
-        path: ${{ matrix.source_branch }}/game
-        if-no-files-found: error
+        name: vphysics_jolt_${{ matrix.branch }}_linux${{ matrix.arch }}
+        path: ${{ matrix.branch }}/game

@@ -116,7 +116,13 @@ public:
 	void CleanupDeleteList() override;
 	void EnableDeleteQueue( bool enable ) override;
 
+#if defined( GAME_GMOD_64X )
+	void PreSave( const physprerestoreparams_t &params ) override;
+#endif
 	bool Save( const physsaveparams_t& params ) override;
+#if defined( GAME_GMOD_64X )
+	void PostSave() override;
+#endif
 	void PreRestore( const physprerestoreparams_t& params ) override;
 	bool Restore( const physrestoreparams_t& params ) override;
 	void PostRestore() override;

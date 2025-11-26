@@ -237,7 +237,7 @@ KeyValues *JoltPhysicsSurfaceProps::SurfacePropsToKeyValues( const char *pszBuff
 }
 
 //-------------------------------------------------------------------------------------------------
-
+#if !defined( GAME_GMOD_64X )
 void *JoltPhysicsSurfaceProps::GetIVPMaterial( int nIndex )
 {
 	Log_Stub( LOG_VJolt );
@@ -267,6 +267,7 @@ const char *JoltPhysicsSurfaceProps::GetReservedMaterialName( int nMaterialIndex
 	Log_Stub( LOG_VJolt );
 	return "default";
 }
+#endif
 
 //-------------------------------------------------------------------------------------------------
 
