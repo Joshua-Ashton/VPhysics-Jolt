@@ -149,7 +149,35 @@ bool JoltPhysicsObject::IsMoveable() const
 
 bool JoltPhysicsObject::IsAttachedToConstraint( bool bExternalOnly ) const
 {
-	Log_Stub( LOG_VJolt );
+	for (JPH::Constraint *constraint : m_pPhysicsSystem->GetConstraints())
+	{
+		if ( constraint->GetType() != JPH::EConstraintType::TwoBodyConstraint )
+			continue;
+
+		JPH::TwoBodyConstraint *twoBody = static_cast<JPH::TwoBodyConstraint*>( constraint );
+		if ( twoBody->GetBody1() == m_pBody )
+		{
+			// RaphaelIT7: (ToDo) Check if this might need to call TryGetBody to be safe?
+			if ( bExternalOnly )
+			{
+				JoltPhysicsObject *pObject = reinterpret_cast< JoltPhysicsObject * >( twoBody->GetBody2()->GetUserData() );
+				return pObject && pObject->GetGameData() != GetGameData();
+				// RaphaelIT7: vphysics seems to compare bExternalOnly by comparing the GameData, so lets keep that behavior too
+			}
+
+			return true;
+		} else if ( twoBody->GetBody2() == m_pBody )
+		{
+			if ( bExternalOnly )
+			{
+				JoltPhysicsObject *pObject = reinterpret_cast< JoltPhysicsObject * >( twoBody->GetBody1()->GetUserData() );
+				return pObject && pObject->GetGameData() != GetGameData();
+			}
+
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -195,6 +223,7 @@ void JoltPhysicsObject::EnableMotion( bool enable )
 		return;
 
 	m_bPinned = bPinned;
+	RecaulculateFixedConstraintPartnerMovable(); // RaphaelIT7: For improved fixed constraints
 	UpdateLayer();
 }
 
@@ -1291,13 +1320,14 @@ void JoltPhysicsObject::UpdateLayer()
 	const bool bCollisionsEnabled = m_bCachedCollisionEnabled;
 	const bool bStatic = IsStatic();
 	const bool bPinned = m_bPinned;
+	const bool bConstraintPinned = m_bConstraintPinned;
 	const bool bDebris = m_collisionHints & COLLISION_HINT_DEBRIS;
 	const bool bStaticSolid = m_collisionHints & COLLISION_HINT_STATICSOLID;
 
 	// Update motion type if not made as a complete solid.
 	if ( !bStatic && !IsControlledByGame() )
 	{
-		bool bStaticMotionType = bStaticSolid || bPinned;
+		bool bStaticMotionType = bStaticSolid || bPinned || bConstraintPinned;
 
 		// If we are transfering to being static, and we were active
 		// add us to a list of bodies on the environment so we can be included in
@@ -1320,7 +1350,7 @@ void JoltPhysicsObject::UpdateLayer()
 
 	if ( bStatic || bStaticSolid )
 		layer = Layers::NON_MOVING_WORLD;
-	else if ( bPinned )
+	else if ( bPinned || bConstraintPinned )
 		layer = Layers::NON_MOVING_OBJECT;
 
 	if ( !bCollisionsEnabled )
@@ -1340,4 +1370,37 @@ void JoltPhysicsObject::RecomputeDrag()
 
 	Vector vDragMins, vDragMaxs;
 	JoltPhysicsCollision::GetInstance().CollideGetAABB( &vDragMins, &vDragMaxs, GetCollide(), vec3_origin, vec3_angle );
+}
+
+// RaphaelIT7: To improve fixed constraints by making objects kinda static/unmovable when their partner is freezed.
+// This is needed since Jolt cannot guarantee perfectly fixed constraints - they could always move/rotate a bit which we don't want.
+void JoltPhysicsObject::RecaulculateFixedConstraintPartnerMovable()
+{
+	for (JPH::Constraint *constraint : m_pPhysicsSystem->GetConstraints())
+	{
+		if ( constraint->GetType() != JPH::EConstraintType::TwoBodyConstraint )
+			continue;
+
+		JPH::TwoBodyConstraint *twoBody = static_cast<JPH::TwoBodyConstraint*>( constraint );
+		JoltPhysicsObject *pObject = nullptr;
+		if ( twoBody->GetBody1() == m_pBody )
+			pObject = reinterpret_cast< JoltPhysicsObject * >( twoBody->GetBody2()->GetUserData() );
+		else if ( twoBody->GetBody2() == m_pBody )
+			pObject = reinterpret_cast< JoltPhysicsObject * >( twoBody->GetBody1()->GetUserData() );
+
+		if ( pObject )
+		{
+			if ( ( IsMoveable() && !pObject->IsMoveable() ) || ( !IsMoveable() && pObject->IsMoveable() ) )
+			{
+				m_bConstraintPinned = true;
+				pObject->m_bConstraintPinned = true;
+			}
+			else
+			{
+				m_bConstraintPinned = false;
+				pObject->m_bConstraintPinned = false;
+			}
+			pObject->UpdateLayer(); // RaphaelIT7: Since m_bConstraintPinned may have changed, we gotta ensure it also updates
+		}
+	}
 }
