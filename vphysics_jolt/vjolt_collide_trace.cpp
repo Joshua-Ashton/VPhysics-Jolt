@@ -30,13 +30,6 @@ static ConVar vjolt_trace_debug_collidebox( "vjolt_trace_debug_collidebox", "0",
 static ConVar vjolt_trace_debug_castbox_only_fails( "vjolt_trace_debug_castbox_only_fails", "0", FCVAR_CHEAT );
 static ConVar vjolt_trace_debug_castbox_only_hits( "vjolt_trace_debug_castbox_only_hits", "0", FCVAR_CHEAT );
 
-// Josh: Enables a hack to make portals work. For some reason when we enable colliding with
-// backfaces, the player gets easily stuck in all sorts of things!
-// Slart and I have not been able to determine the root cause of this problem and have tried for a long time...
-//
-// Slart: Portal 2 probably passes in a bad winding order in the polyhedron or something, dunno if it affects Portal 1
-static ConVar vjolt_trace_portal_hack( "vjolt_trace_portal_hack", "0", FCVAR_NONE );
-
 static ConVar vjolt_trace_castbox_backface_force( "vjolt_trace_castbox_backface_force", "0", FCVAR_NONE );
 
 //-------------------------------------------------------------------------------------------------
@@ -213,9 +206,14 @@ public:
 		// Ensure that the contents filter was used
 		VJoltAssert( contents & m_ContentsMask );
 
-#if 0
-		// Test if this collision is closer than the previous one
 		const float theirEarlyOut = inResult.GetEarlyOutFraction();
+		if ( theirEarlyOut < 0.0f )
+			m_bStartSolid = true;
+
+		const bool isBackface = inResult.mPenetrationAxis.Dot( m_vDisplacement ) <= 0.0f;
+		const bool isConvexBackface = isBackface && inResult.mIsBackFaceHit; // mIsBackFaceHit never true for convex shapes
+
+		// Test if this collision is closer than the previous one
 		const float ourEarlyOut = GetEarlyOutFraction();
 		if ( !m_DidHit || theirEarlyOut < ourEarlyOut )
 		{
@@ -230,36 +228,10 @@ public:
 			m_PenetrationDepth = inResult.mPenetrationDepth;
 
 			m_DidHit = true;
-			m_HitBackFace = inResult.mIsBackFaceHit;
-		}
-#endif
+			m_HitConvexBackFace = isConvexBackface;
 
-		const float theirEarlyOut = inResult.GetEarlyOutFraction();
-		if ( theirEarlyOut < 0.0f )
-			m_bStartSolid = true;
-
-		if ( inResult.mPenetrationAxis.Dot( m_vDisplacement ) > 0.0f ) // Ignore penetrations that we're moving away from
-		{
-			// Test if this collision is closer than the previous one
-			const float ourEarlyOut = GetEarlyOutFraction();
-			if ( !m_DidHit || theirEarlyOut < ourEarlyOut )
-			{
-				// Update our early out fraction
-				UpdateEarlyOutFraction( theirEarlyOut );
-
-				m_Fraction = inResult.mFraction;
-				m_ResultContents = contents;
-				m_SubShapeID = inResult.mSubShapeID2;
-				m_ContactPoint = inResult.mContactPointOn2;
-				m_PenetrationAxis = inResult.mPenetrationAxis;
-				m_PenetrationDepth = inResult.mPenetrationDepth;
-
-				m_DidHit = true;
-				m_HitBackFace = inResult.mIsBackFaceHit;
-
-				if ( ourEarlyOut < 0.0f )
-					m_bEndSolid = true;
-			}
+			if ( ourEarlyOut < 0.0f )
+				m_bEndSolid = true;
 		}
 	}
 
@@ -280,7 +252,7 @@ public:
 	float				m_PenetrationDepth = 0.0f;
 
 	bool				m_DidHit = false;				// Set to true if we hit anything
-	bool				m_HitBackFace = false;			// Set to true if the hit was against a backface
+	bool				m_HitConvexBackFace = false;	// Set to true if the hit was against a convex shape backface
 
 	bool				m_bStartSolid = false;
 	bool				m_bEndSolid = false;
@@ -524,12 +496,9 @@ static void CastBoxVsShape( const Ray_t &ray, uint32 contentsMask, IConvexInfo *
 
 	JPH::ShapeCastSettings settings;
 	//settings.mBackFaceModeTriangles = JPH::EBackFaceMode::CollideWithBackFaces;
-	// Josh: Had to re-enable CollideWithBackFaces to allow triggers for the Portal Environment to work.
-	// Come back here if we start getting stuck on things again...
-	if ( vjolt_trace_portal_hack.GetBool() )
-		settings.mBackFaceModeConvex = JPH::EBackFaceMode::CollideWithBackFaces;
+	settings.mBackFaceModeConvex = JPH::EBackFaceMode::CollideWithBackFaces;
 	if ( vjolt_trace_castbox_backface_force.GetBool() )
-		settings.SetBackFaceMode( JPH::EBackFaceMode::CollideWithBackFaces );
+		settings.mBackFaceModeTriangles = JPH::EBackFaceMode::CollideWithBackFaces;
 	settings.mCollisionTolerance = SourceToJolt::Distance( 0.1f * 0.25f ); // Regular VPhysics uses 0.25" here for the "collision tolerance"/epsilon, but when actually testing, it uses 0.1 * epsilon, so provide that here.
 	settings.mUseShrunkenShapeAndConvexRadius = true;
 	settings.mReturnDeepestPoint = false;
@@ -538,7 +507,20 @@ static void CastBoxVsShape( const Ray_t &ray, uint32 contentsMask, IConvexInfo *
 	ContentsCollector_CastShape collector( pShape, contentsMask, pConvexInfo, direction );
 	JPH::CollisionDispatch::sCastShapeVsShapeWorldSpace( shapeCast, settings, pShape, JPH::Vec3::sReplicate( 1.0f ), filter, queryTransform, JPH::SubShapeIDCreator(), JPH::SubShapeIDCreator(), collector );
 
-	if ( collector.m_DidHit )
+	if ( collector.m_HitConvexBackFace )
+	{
+		// If the closest point is in the backface of a convex, then this counts as starting in a solid. In this case,
+		// as with CastRay, we mimic the behavior of IVP where the ray is clipped and startsolid == allsolid.
+		// However, if we're not inside a convex shape, they can be independent (see below).
+
+		pTrace->startpos = ray.m_Start + ray.m_StartOffset;
+		pTrace->endpos = pTrace->startpos;
+
+		pTrace->contents = collector.m_ResultContents;
+
+		pTrace->startsolid = pTrace->allsolid = true;
+	}
+	else if ( collector.m_DidHit )
 	{
 		JPH::Vec3 normal = -( collector.m_PenetrationAxis.Normalized() );
 		pTrace->plane.normal = Vector( normal.GetX(), normal.GetY(), normal.GetZ() );
@@ -549,7 +531,9 @@ static void CastBoxVsShape( const Ray_t &ray, uint32 contentsMask, IConvexInfo *
 
 		pTrace->plane.dist = DotProduct( pTrace->endpos, pTrace->plane.normal );
 		pTrace->contents = collector.m_ResultContents;
-			
+		
+		// Unlike CastRay and IVP, we can be startsolid but not allsolid in the case
+		// where we're not inside a convex shape. This improves mesh/polysoup collision.
 		pTrace->allsolid   = collector.m_bStartSolid && collector.m_bEndSolid;
 		pTrace->startsolid = collector.m_bStartSolid;
 	}
